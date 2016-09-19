@@ -10,6 +10,7 @@
     /// </summary>
     public class NavigationPageAdapter : INavigationService {
         private readonly NavigationPage navigationPage;
+        private Page currentPage;
 
         /// <summary>
         /// Instantiates new instance of NavigationPageAdapter
@@ -17,32 +18,45 @@
         /// <param name="navigationPage">The navigation page to adapat</param>
         public NavigationPageAdapter(NavigationPage navigationPage) {
             this.navigationPage = navigationPage;
+
+            navigationPage.Pushed += OnPushed;
+            navigationPage.Popped += OnPopped;
+            navigationPage.PoppedToRoot += OnPoppedToRoot;
+        }
+
+        private void OnPoppedToRoot(object sender, NavigationEventArgs e) {
+            DeactivateView(currentPage);
+            ActivateView(navigationPage.CurrentPage);
+
+            currentPage = navigationPage.CurrentPage;
+        }
+
+        private void OnPopped(object sender, NavigationEventArgs e) {
+            DeactivateView(currentPage);
+            ActivateView(navigationPage.CurrentPage);
+
+            currentPage = navigationPage.CurrentPage;
+        }
+
+        private void OnPushed(object sender, NavigationEventArgs e) {
+            DeactivateView(currentPage);
+            ActivateView(navigationPage.CurrentPage);
+
+            currentPage = navigationPage.CurrentPage;
         }
 
         private static void DeactivateView(BindableObject view)
         {
-            if (view == null)
-                return;
+            var deactivate = view?.BindingContext as IDeactivate;
 
-            var deactivate = view.BindingContext as IDeactivate;
-
-            if (deactivate != null)
-            {
-                deactivate.Deactivate(false);
-            }
+            deactivate?.Deactivate(false);
         }
 
         private static void ActivateView(BindableObject view)
         {
-            if (view == null)
-                return;
+            var activator = view?.BindingContext as IActivate;
 
-            var activator = view.BindingContext as IActivate;
-
-            if (activator != null)
-            {
-                activator.Activate();
-            }
+            activator?.Activate();
         }
 
         /// <summary>
@@ -140,7 +154,7 @@
             var page = view as Page;
 
             if (page == null)
-                throw new NotSupportedException(String.Format("{0} does not inherit from {1}.", view.GetType(), typeof(Page)));
+                throw new NotSupportedException($"{view.GetType()} does not inherit from {typeof (Page)}.");
 
             var viewModel = ViewModelLocator.LocateForView(view);
 
@@ -149,9 +163,6 @@
 
                 ViewModelBinder.Bind(viewModel, view, null);
             }
-
-            page.Appearing += (s, e) => ActivateView(page);
-            page.Disappearing += (s, e) => DeactivateView(page);
 
             return navigationPage.PushAsync(page, animated);
         }
@@ -214,16 +225,15 @@
         private bool CanClose() {
             var view = navigationPage.CurrentPage;
 
-            if (view == null)
-                return true;
-
-            var guard = view.BindingContext as IGuardClose;
+            var guard = view?.BindingContext as IGuardClose;
 
             if (guard != null)
             {
                 var shouldCancel = false;
                 var runningAsync = true;
+
                 guard.CanClose(result => { runningAsync = false; shouldCancel = !result; });
+
                 if (runningAsync)
                     throw new NotSupportedException("Async CanClose is not supported.");
 
